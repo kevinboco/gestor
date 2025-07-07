@@ -1,0 +1,16 @@
+{
+    "name": "gestor/excel",
+    "description": "proyecto para subir y visualizar archivos excel",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "kevinboco",
+            "email": "kevinalexanderboca@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "phpoffice/phpspreadsheet": "^4.4"
+    }
+}

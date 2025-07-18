@@ -20,6 +20,8 @@ if ($tabla === 'saldos') {
     header("Location: ver_saldos.php?tabla=" . urlencode($tabla));
     exit;
 }
+
+
 $columnas_result = $conexion->query("DESCRIBE `$tabla`");
 $columnas = [];
 while ($col = $columnas_result->fetch_assoc()) {
@@ -81,6 +83,7 @@ $datos = $conexion->query("SELECT * FROM `$tabla`");
         </li>
       </ul>
       <a href="index.php" class="btn btn-outline-light ms-3">➕ Crear nueva tabla</a>
+      <a href="subir_excel.php" class="btn btn-outline-light ms-3">➕ Subir Excel</a>
       <form method="POST" action="eliminar_tabla.php" onsubmit="return confirm('¿Eliminar la tabla <?= $tabla ?>?')" class="d-flex ms-3">
         <input type="hidden" name="tabla" value="<?= $tabla ?>">
         <button type="submit" class="btn btn-danger">🗑️ Eliminar tabla</button>
@@ -368,9 +371,22 @@ function subirComprobante(input, id) {
     else alert("Error al subir el comprobante.");
   });
 }
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'filtroPersonas') {
+    const filtro = e.target.value.toLowerCase();
+    const filas = document.querySelectorAll('#tablaFiltroPersonas tbody tr');
 
+    filas.forEach(fila => {
+      const textoFila = fila.innerText.toLowerCase();
+      fila.style.display = textoFila.includes(filtro) ? '' : 'none';
+    });
+  }
+});
 
 </script>
+
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>  

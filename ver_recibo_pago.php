@@ -18,10 +18,15 @@ if ($tabla) {
     $datos = $conexion->query("SELECT * FROM `$tabla`");
 } else {
     $columnas = [];
-    $datos = new stdClass(); // Evita errores si no hay tabla
+    $datos = new stdClass();
+}
+
+// Leer la plantilla si existe
+$plantilla = [];
+if (file_exists('plantilla_factura.json')) {
+    $plantilla = json_decode(file_get_contents('plantilla_factura.json'), true);
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -36,21 +41,11 @@ if ($tabla) {
       outline: 2px solid #007bff;
       background-color: #e9f5ff;
     }
-        /* Agrega esto en tu <style> o CSS */
-    .table-responsive {
-      width: 100%;
-    }
-    .table {
-      width: 100%;
-      min-width: max-content; /* Hace que las columnas no se colapsen */
-    }
-    .table th, .table td {
-      padding: 0.3rem;
-      font-size: 0.95rem;
-    }
+    .table-responsive { width: 100%; }
+    .table { width: 100%; min-width: max-content; }
+    .table th, .table td { padding: 0.3rem; font-size: 0.95rem; }
   </style>
 </head>
-<body>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
   <div class="container-fluid">
@@ -65,7 +60,6 @@ if ($tabla) {
           <ul class="dropdown-menu">
             <?php foreach ($tablas as $t): ?>
               <li><a class="dropdown-item <?= $t === $tabla ? 'active' : '' ?>" href="ver_tabla.php?tabla=<?= urlencode($t) ?>"><?= htmlspecialchars($t) ?></a></li>
-
             <?php endforeach; ?>
           </ul>
         </li>
@@ -79,45 +73,35 @@ if ($tabla) {
     </div>
   </div>
 </nav>
+
 <div class="container border p-4 my-4" style="border: 2px dashed #000; max-width: 800px;" id="facturaEditable">
   <h4 class="text-center mb-3" contenteditable="true">FACTURA / COMPROBANTE DE PAGO</h4>
   <table class="table table-bordered">
     <tbody>
-      <tr>
-        <th contenteditable="true">Nombre</th>
-        <td contenteditable="true"></td>
-        <th contenteditable="true">Cédula</th>
-        <td contenteditable="true"></td>
-      </tr>
-      <tr>
-        <th contenteditable="true">Concepto</th>
-        <td colspan="3" contenteditable="true"></td>
-      </tr>
-      <tr>
-        <th contenteditable="true">Fecha</th>
-        <td contenteditable="true"></td>
-        <th contenteditable="true">Monto Pagado</th>
-        <td contenteditable="true"></td>
-      </tr>
-      <tr>
-        <th contenteditable="true">Forma de Pago</th>
-        <td colspan="3" contenteditable="true"></td>
-      </tr>
-      <tr>
-        <th contenteditable="true">Comprobante</th>
-        <td contenteditable="true"></td>
-        <th contenteditable="true">Saldo</th>
-        <td contenteditable="true"></td>
-      </tr>
-      <tr>
-        <th contenteditable="true">Observaciones</th>
-        <td colspan="3" contenteditable="true" style="height: 60px;"></td>
-      </tr>
-      <tr>
-        <td colspan="4" class="text-end" contenteditable="true">
-          Firma ______________________________
-        </td>
-      </tr>
+      <?php
+      $etiquetas = [
+        ["Nombre", "", "Cédula", ""],
+        ["Concepto", "", "", ""],
+        ["Fecha", "", "Monto Pagado", ""],
+        ["Forma de Pago", "", "", ""],
+        ["Comprobante", "", "Saldo", ""],
+        ["Observaciones", "", "", ""],
+        ["Firma ______________________________", "", "", ""]
+      ];
+
+      $i = 0;
+      foreach ($etiquetas as $fila) {
+          echo "<tr>";
+          foreach ($fila as $columna) {
+              $valor = $plantilla["campo$i"] ?? htmlspecialchars($columna);
+              $colspan = ($columna === "" && count(array_filter($fila)) === 1) ? 3 : 1;
+              echo "<td contenteditable='true' colspan='$colspan'>" . $valor . "</td>";
+              $i++;
+              if ($colspan === 3) break;
+          }
+          echo "</tr>";
+      }
+      ?>
       <tr>
         <td colspan="4">
           <table class="table table-bordered mt-3">
@@ -130,23 +114,21 @@ if ($tabla) {
                 <th>Cédula</th>
               </tr>
             </thead>
-            <tbody id="detalleFacturas">
-              <!-- Aquí se insertarán las filas dinámicamente desde JS -->
-            </tbody>
+            <tbody id="detalleFacturas"></tbody>
           </table>
         </td>
       </tr>
-
     </tbody>
   </table>
   <div class="text-center mt-3">
     <button class="btn btn-outline-primary" onclick="imprimirFactura()">🖨️ Imprimir</button>
+    <button class="btn btn-success mt-2" onclick="guardarPlantilla()">💾 Guardar</button>
   </div>
 </div>
-<div class="mb-3 text-end">
-    <button class="btn btn-primary" onclick="abrirModalFacturas(null)">➕ Buscar cédula</button>
-  </div>
 
+<div class="mb-3 text-end">
+  <button class="btn btn-primary" onclick="abrirModalFacturas(null)">➕ Buscar cédula</button>
+</div>
 
 <!-- Modal -->
 <div class="modal fade" id="modalFacturas" tabindex="-1">
@@ -164,10 +146,26 @@ if ($tabla) {
 </div>
 
 <script>
-let celdaFacturaSeleccionada = null;
+function guardarPlantilla() {
+  const factura = document.getElementById("facturaEditable");
+  const celdas = factura.querySelectorAll("td[contenteditable], th[contenteditable]");
+  const datos = {};
+  let index = 0;
+  celdas.forEach(celda => {
+    datos[`campo${index++}`] = celda.innerText.trim();
+  });
+
+  fetch("guardar_plantilla.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datos)
+  })
+  .then(res => res.text())
+  .then(respuesta => alert("✅ Factura guardada"))
+  .catch(err => alert("❌ Error al guardar"));
+}
 
 function abrirModalFacturas(celda) {
-  celdaFacturaSeleccionada = celda;
   const modal = new bootstrap.Modal(document.getElementById('modalFacturas'));
   fetch('obtener_personas_factura.php')
     .then(res => res.text())
@@ -180,16 +178,13 @@ function abrirModalFacturas(celda) {
 function seleccionarDesdeFacturas(cedula) {
   const modal = bootstrap.Modal.getInstance(document.getElementById('modalFacturas'));
   modal.hide();
-
-  // Elimina facturas anteriores
   document.querySelectorAll("tr.factura-insertada").forEach(f => f.remove());
 
   fetch(`obtener_todas_facturas.php?cedula=${cedula}`)
     .then(res => res.json())
     .then(facturas => {
       const detalleBody = document.getElementById("detalleFacturas");
-      detalleBody.innerHTML = ''; // Limpia antes de insertar
-
+      detalleBody.innerHTML = '';
       facturas.forEach(factura => {
         const fila = document.createElement("tr");
         fila.classList.add("factura-insertada");
@@ -211,10 +206,9 @@ function imprimirFactura() {
   document.body.innerHTML = factura;
   window.print();
   document.body.innerHTML = original;
-  location.reload(); // recarga para evitar errores visuales
+  location.reload();
 }
 </script>
-
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

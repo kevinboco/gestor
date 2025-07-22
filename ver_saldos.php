@@ -67,6 +67,7 @@ if ($tabla) {
         </li>
       </ul>
       <a href="index.php" class="btn btn-outline-light ms-3">➕ Crear nueva tabla</a>
+      <a href="subir_excel.php" class="btn btn-outline-light ms-3">➕ Subir Excel</a>
       <form method="POST" action="eliminar_tabla.php" onsubmit="return confirm('¿Eliminar la tabla <?= $tabla ?>?')" class="d-flex ms-3">
         <input type="hidden" name="tabla" value="<?= $tabla ?>">
         <button type="submit" class="btn btn-danger">🗑️ Eliminar tabla</button>

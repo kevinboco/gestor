@@ -64,7 +64,7 @@ if ($tabla) {
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Seleccionar tabla</a>
           <ul class="dropdown-menu">
             <?php foreach ($tablas as $t): ?>
-              <li><a class="dropdown-item <?= $t === $tabla ? 'active' : '' ?>" href="vertabla.php?tabla=<?= urlencode($t) ?>"><?= htmlspecialchars($t) ?></a></li>
+              <li><a class="dropdown-item <?= $t === $tabla ? 'active' : '' ?>" href="ver_tabla.php?tabla=<?= urlencode($t) ?>"><?= htmlspecialchars($t) ?></a></li>
 
             <?php endforeach; ?>
           </ul>

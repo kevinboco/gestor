@@ -67,6 +67,98 @@ $faltante = $total - $pagado;
   <title>Ingresos por Entidad</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+  }
+
+  h2, h4 {
+    color: #343a40;
+  }
+
+  #resumen {
+    background: #fff;
+    padding: 15px 20px;
+    border-left: 5px solid #198754;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+
+  .form-select, .form-control, textarea {
+    border-radius: 0.5rem;
+    box-shadow: none;
+    border: 1px solid #ced4da;
+  }
+
+  .form-control:focus, .form-select:focus, textarea:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.15rem rgba(0,123,255,.25);
+  }
+
+  button {
+    border-radius: 0.5rem !important;
+  }
+
+  .btn {
+    transition: all 0.2s ease-in-out;
+  }
+
+  .btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  table.table {
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  thead.table-light {
+    background-color: #e9ecef;
+    color: #495057;
+    font-weight: 600;
+  }
+
+  table td, table th {
+    vertical-align: middle;
+  }
+
+  #tabla tr:nth-child(even) {
+    background-color: #f7f7f7;
+  }
+
+  #tabla tr:hover {
+    background-color: #eef2f7;
+  }
+
+  #estadisticas {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+
+  #contenedor-graficos canvas {
+    background: #fff;
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  label {
+    font-weight: 500;
+    margin-bottom: 5px;
+  }
+
+  #filtro-rango input {
+    border-radius: 0.4rem;
+  }
+  </style>
+
 </head>
 <body class="bg-light p-4">
 <div class="container">
@@ -100,6 +192,7 @@ $faltante = $total - $pagado;
     </div>
     <div class="col-md-3">
       <button onclick="filtrarTabla()" class="btn btn-secondary mt-2">🔍 Filtrar</button>
+      <button onclick="limpiarFiltros()" class="btn btn-outline-dark">🧹 Limpiar Filtros</button>
     </div>
   </div>
 
@@ -134,7 +227,11 @@ $faltante = $total - $pagado;
           <td>$<?= $fila['diferencia'] ?></td>
           <td><input type="date" value="<?= $fila['fecha_pago'] ?>" data-id="<?= $fila['id'] ?>" data-campo="fecha_pago" class="form-control"></td>
           <td><textarea data-id="<?= $fila['id'] ?>" data-campo="observaciones" class="form-control"><?= $fila['observaciones'] ?></textarea></td>
-          <td><button onclick="eliminarFila(this)" class="btn btn-sm btn-danger">❌</button></td>
+          <td>
+            <button onclick="eliminarFila(this)" class="btn btn-sm btn-danger" data-id="<?= $fila['id'] ?>">❌</button>
+          </td>
+
+
         </tr>
         <?php endforeach; ?>
       </tbody>
@@ -253,10 +350,17 @@ function formatoInput(inp){
 
 function setupFormato(){
   document.querySelectorAll('.monto').forEach(inp => {
-    inp.oninput = null;
-    formatoInput(inp);
+    inp.removeEventListener('input', formatear);
+    inp.addEventListener('input', formatear);
   });
+
+  function formatear(e){
+    let v = e.target.value.replace(/[^\d]/g, '');
+    e.target.value = v ? new Intl.NumberFormat('es-CO').format(v) : '';
+    e.target.dataset.valorlimpio = v;  // <--- Guarda el valor limpio
+  }
 }
+
 
 function agregarFila(){
   const fila = document.createElement('tr');
@@ -273,9 +377,32 @@ function agregarFila(){
   setupFormato();
 }
 
-function eliminarFila(btn){
-  btn.closest('tr').remove();
+function eliminarFila(btn) {
+  const id = btn.dataset.id;
+
+  if (!id) {
+    // Si no tiene ID (registro nuevo sin guardar aún), solo elimina la fila
+    btn.closest('tr').remove();
+    return;
+  }
+
+  if (confirm('¿Estás seguro de que deseas eliminar este registro?')) {
+    fetch('eliminar_ingreso.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id: id })
+    })
+    .then(res => res.text())
+    .then(response => {
+      if (response === 'ok') {
+        btn.closest('tr').remove();
+      } else {
+        alert('No se pudo eliminar el registro');
+      }
+    });
+  }
 }
+
 
 function guardarCambios(){
   const filas = document.querySelectorAll('#tabla tr');
@@ -284,15 +411,28 @@ function guardarCambios(){
   filas.forEach(tr => {
     const obj = {};
     const inputs = tr.querySelectorAll('input, select, textarea');
+
     inputs.forEach(el => {
       const campo = el.dataset.campo;
       const id = el.dataset.id;
-      if (campo) obj[campo] = el.value;
+      if (campo) {
+        let valor = el.value;
+
+        // Limpiar comas para los campos de monto
+        if (campo === 'monto_total' || campo === 'monto_pagado') {
+          valor = valor.replace(/[^\d]/g, ''); // solo números
+          valor = valor ? parseFloat(valor) : 0;
+        }
+
+        obj[campo] = valor;
+      }
       if (id) obj.id = id;
     });
-    if(obj['monto_total']) obj['monto_total'] = obj['monto_total'].replace(/,/g,'');
-    if(obj['monto_pagado']) obj['monto_pagado'] = obj['monto_pagado'].replace(/,/g,'');
-    data.push(obj);
+
+    // Asegurarse de que hay al menos un campo importante lleno antes de guardar
+    if(obj['nombre_entidad'] || obj['monto_total'] || obj['monto_pagado']) {
+      data.push(obj);
+    }
   });
 
   fetch('', {
@@ -306,6 +446,8 @@ function guardarCambios(){
     location.reload();
   });
 }
+
+
 
 function filtrarTabla(){
   const nombre = document.getElementById('filtro_entidad').value;
@@ -346,6 +488,30 @@ function filtrarTabla(){
 }
 
 window.onload = setupFormato;
+function limpiarFiltros(){
+  document.getElementById('filtro_entidad').value = '';
+  document.getElementById('filtro_fecha_ini').value = '';
+  document.getElementById('filtro_fecha_fin').value = '';
+
+  const filas = document.querySelectorAll('#tabla tr');
+  let total = 0, pagado = 0;
+
+  filas.forEach(tr => {
+    tr.style.display = '';
+    const mt = parseFloat(tr.querySelector('input[data-campo="monto_total"]').value.replace(/,/g, '')) || 0;
+    const mp = parseFloat(tr.querySelector('input[data-campo="monto_pagado"]').value.replace(/,/g, '')) || 0;
+    total += mt;
+    pagado += mp;
+  });
+
+  const faltante = total - pagado;
+  document.getElementById('resumen').innerHTML = `
+    <strong>Total Esperado:</strong> $${total.toLocaleString('es-CO')} |
+    <strong>Pagado:</strong> $${pagado.toLocaleString('es-CO')} |
+    <strong>Faltante:</strong> $${faltante.toLocaleString('es-CO')}
+  `;
+}
+
 </script>
 </body>
 </html>
